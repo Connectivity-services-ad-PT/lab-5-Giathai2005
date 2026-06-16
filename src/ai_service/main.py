@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from typing import List
 
 app = FastAPI()
 
@@ -7,7 +6,7 @@ app = FastAPI()
 def health():
     return {"status": "ok", "service": "ai"}
 
-@app.post("/predict")
+@app.get("/predict")
 def predict():
     return {
         "objects": ["person", "bicycle"],
