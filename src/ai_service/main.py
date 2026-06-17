@@ -1,18 +1,24 @@
-from fastapi import FastAPI
+import time
+from fastapi import FastAPI, HTTPException
 
-app = FastAPI()
+app = FastAPI(title="AI Service - Team IoT")
+MODEL_READY = False
+
+@app.on_event("startup")
+def load_model():
+    global MODEL_READY
+    time.sleep(3)  # Giả lập thời gian load weight của mô hình
+    MODEL_READY = True
+    print("🤖 AI Model loaded and ready!")
 
 @app.get("/health")
-def health():
-    return {"status": "ok", "service": "ai"}
+def health_check():
+    if not MODEL_READY:
+        raise HTTPException(status_code=503, detail="AI Model is loading...")
+    return {"status": "healthy", "model": "Mock-YOLOv8"}
 
-@app.get("/predict")
-def predict():
-    return {
-        "objects": ["person", "bicycle"],
-        "confidence": [0.98, 0.85]
-    }
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=9000)
+@app.post("/predict")
+def predict(payload: dict):
+    if not MODEL_READY:
+        raise HTTPException(status_code=503, detail="Model not ready")
+    return {"prediction": "object_detected", "confidence": 0.95}

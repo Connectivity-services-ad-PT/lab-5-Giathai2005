@@ -1,66 +1,70 @@
-version: "3.8"
-
-services:
-  db:
-    image: postgres:15-alpine
-    container_name: fit4110-db-lab05
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-lab05}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lab05pass}
-      POSTGRES_DB: ${POSTGRES_DB:-iotdb}
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    networks:
-      - team-internal
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lab05} -d ${POSTGRES_DB:-iotdb}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  ai-service:
-    build:
-      context: .
-      dockerfile: Dockerfile.ai
-    container_name: fit4110-ai-lab05
-    ports:
-      - "9000:9000"
-    networks:
-      - team-internal
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/health || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: fit4110-api-lab05
-    depends_on:
-      db:
-        condition: service_healthy
-      ai-service:
-        condition: service_healthy
-    env_file:
-      - .env
-    ports:
-      - "8000:8000"
-    networks:
-      - team-internal
-      - class-net
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-volumes:
-  db-data:
+version: '3.8'
 
 networks:
   team-internal:
     driver: bridge
   class-net:
     external: true
+
+volumes:
+  db-data:
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: fit4110-db-lab05
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-iot_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dnu_secret_pass_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-smart_campus_iot}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - team-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fit4110-ai-lab05
+    entrypoint: ["uvicorn", "ai_service.main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "9000"]
+    ports:
+      - "9000:9000"
+    networks:
+      - team-internal
+    # SỬA ĐOẠN NÀY: Dùng lệnh Python có sẵn trong image và gọi đúng cổng 9000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3).read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fit4110-api-lab05
+    # Ép biến APP_PORT chạy cổng 8000 giống Dockerfile
+    entrypoint: ["uvicorn", "iot_app.main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-iot_admin}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-dnu_secret_pass_2026}
+      - POSTGRES_DB=${POSTGRES_DB:-smart_campus_iot}
+      - DB_HOST=db
+      - AI_SERVICE_HOST=ai-service
+      - APP_PORT=8000
+    ports:
+      - "8000:8000"
+    networks:
+      - team-internal
+      - class-net
+    depends_on:
+      db:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
